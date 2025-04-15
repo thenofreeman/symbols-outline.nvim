@@ -12,53 +12,37 @@ function M.hover_info(bufnr, params, on_info)
   local clients = vim.lsp.get_clients({ bufnr = bufnr })
   local used_client
 
-  for id, client in pairs(clients) do
-    if config.is_client_blacklisted(id) then
-      goto continue
-    else
-      if client.server_capabilities.hoverProvider then
-        used_client = client
-        break
-      end
+  for _, client in pairs(clients) do
+    if not config.is_client_blacklisted(client.id) and client.server_capabilities.hoverProvider then
+      used_client = client
+      break
     end
-    ::continue::
   end
 
   if not used_client then
     on_info(nil, {
       contents = {
         kind = 'markdown',
-        content = { 'No extra information availaible!' },
+        content = { 'No extra information available!' },
       },
     })
+    return
   end
 
   used_client.request('textDocument/hover', params, on_info, bufnr)
 end
 
--- probably change this
 function M.should_use_provider(bufnr)
-  local clients = vim.lsp.get_clients({ bufnr = bufnr })
-  local ret = false
-
-  for id, client in pairs(clients) do
-    if config.is_client_blacklisted(id) then
-      goto continue
-    else
-      if client.server_capabilities.documentSymbolProvider then
-        ret = true
-        break
-      end
+  for _, client in pairs(vim.lsp.get_clients({ bufnr = bufnr })) do
+    if not config.is_client_blacklisted(client.id) and client.server_capabilities.documentSymbolProvider then
+      return true
     end
-    ::continue::
   end
-
-  return ret
+  return false
 end
 
 function M.postprocess_symbols(response)
   local symbols = lsp_utils.flatten_response(response)
-
   local jsx_symbols = jsx.get_symbols()
 
   if #jsx_symbols > 0 then
@@ -74,7 +58,7 @@ function M.request_symbols(on_symbols)
     0,
     'textDocument/documentSymbol',
     getParams(),
-    function (response)
+    function(response)
       on_symbols(M.postprocess_symbols(response))
     end
   )
